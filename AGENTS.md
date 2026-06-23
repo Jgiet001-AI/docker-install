@@ -45,3 +45,6 @@ Shared host files for n8n: drop files in `./local-files`, then reference them as
   Reserve `wsl --shutdown` for a hung engine (`docker ps` hangs / "error during connect"); it bounces
   every distro and every other agent's containers.
 - Other AI agents run on this machine concurrently — never kill their processes to free resources.
+
+<!-- agent-pr-workflow -->
+PR workflow: branch-push hook (auto-pushes feature branches, never the default branch) + Claude & Codex PR review on every PR. See the `/ship` command and the `pr-flow` convention note for the full branch -> PR -> review -> merge flow.

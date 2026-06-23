@@ -1,0 +1,4 @@
+# managed: agent-pr-workflow v1
+# Git hooks are run by sh — must be LF or the shebang breaks.
+scripts/githooks/* text eol=lf
+*.sh text eol=lf
