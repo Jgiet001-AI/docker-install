@@ -47,6 +47,7 @@ jobs:
         with:
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
           persist-credentials: false
+          fetch-depth: 0   # full history so `git diff base...HEAD` has a merge base
 
       - name: Pre-fetch base and head refs
         if: steps.gate.outputs.skip != 'true'
@@ -65,10 +66,10 @@ jobs:
           prompt: |
             Review the diff of this pull request against its base branch.
             Run: git diff origin/${{ github.event.pull_request.base.ref }}...HEAD
-            Output Markdown. The VERY FIRST line must be exactly one of:
+            Output Markdown that includes, on its own line, exactly one of:
               VERDICT: APPROVE
               VERDICT: REQUEST_CHANGES
-            Then a "Findings" section: concrete issues (correctness, security, test gaps),
+            followed by a "Findings" section: concrete issues (correctness, security, test gaps),
             each with file:line and a suggested fix. If nothing is blocking, APPROVE briefly.
 
   post_feedback:
