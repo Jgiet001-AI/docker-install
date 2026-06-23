@@ -47,4 +47,17 @@ Shared host files for n8n: drop files in `./local-files`, then reference them as
 - Other AI agents run on this machine concurrently — never kill their processes to free resources.
 
 <!-- agent-pr-workflow -->
-PR workflow: branch-push hook (auto-pushes feature branches, never the default branch) + Claude & Codex PR review on every PR. See the `/ship` command and the `pr-flow` convention note for the full branch -> PR -> review -> merge flow.
+## PR workflow
+
+This repo uses the agent PR flow (see the `pr-flow` convention note and the `/ship` command):
+
+- **Never push straight to `main`.** Work on a branch; open a PR. The tracked `scripts/githooks/post-commit`
+  hook (wired via `core.hooksPath=scripts/githooks`, set up by `scripts/setup.ps1` on a fresh clone)
+  auto-pushes the current feature branch in the background but never the default branch.
+- **Review bots:** every PR runs `.github/workflows/claude-code-review.yml` and `codex-review.yml`.
+  They are token-gated on repo secrets `CLAUDE_CODE_OAUTH_TOKEN` and `OPENAI_API_KEY` (both set); the
+  Codex job posts a `VERDICT: APPROVE|REQUEST_CHANGES` comment.
+- **To ship a change:** run `/ship` (Claude) or the `ship` skill (Codex) — branch -> push -> open PR ->
+  watch review + CI -> fix actionable findings -> ask before merge -> squash-merge + delete branch.
+- These files are auto-provisioned/maintained by `~/.claude/hooks/provision-pr-workflow.ps1`; do not
+  rename them. Run `pwsh scripts/setup.ps1` after cloning to activate the hook locally.
