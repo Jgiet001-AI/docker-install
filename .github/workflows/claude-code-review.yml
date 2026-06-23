@@ -1,0 +1,69 @@
+# managed: agent-pr-workflow v1
+name: Claude Code Review
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  push-noop:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: No-op for push events
+        run: echo "Skipping Claude review on push; review runs on pull_request events."
+
+  claude-review:
+    # Skip bot-authored PRs: the OIDC->App-token exchange refuses to
+    # issue a write-scoped token for a bot actor, so the review would
+    # 401 anyway. Gate on pull_request.user.login (the PR opener) rather
+    # than github.actor, which is whoever triggered the current event —
+    # on `synchronize`/`reopened` that can be a different account than
+    # the opener and would mis-gate the job.
+    # Bots whose PRs we explicitly do not review:
+    #   - dependabot[bot]: dependency bumps
+    #   - claude[bot]:     PRs opened by autoassign-agent.yml
+    #   - github-actions[bot]: anything else workflow-authored
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'claude[bot]' &&
+      github.event.pull_request.user.login != 'github-actions[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.CLAUDE_REVIEW_ENABLED != 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
+      - name: Skip if token missing
+        id: gate
+        env:
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "Claude review skipped (no token configured)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Claude Code Review
+        if: steps.gate.outputs.skip != 'true'
+        id: claude-review
+        uses: anthropics/claude-code-action@8c196b2f61a66bfdf93322bde3a3e668669089ed # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
+          plugins: "code-review@claude-code-plugins"
+          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"

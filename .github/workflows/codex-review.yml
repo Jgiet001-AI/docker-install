@@ -1,0 +1,94 @@
+# managed: agent-pr-workflow v1
+name: Codex Review
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  push-noop:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: No-op for push events
+        run: echo "Skipping Codex review on push; review runs on pull_request events."
+
+  codex:
+    # Mirror claude-code-review.yml's gating: PR events only, skip bot-opened PRs and forks.
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'claude[bot]' &&
+      github.event.pull_request.user.login != 'github-actions[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.CODEX_REVIEW_ENABLED != 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      final_message: ${{ steps.run_codex.outputs.final-message }}
+    steps:
+      - name: Skip if token missing
+        id: gate
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "Codex review skipped (no token configured)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v5
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
+          fetch-depth: 0   # full history so `git diff base...HEAD` has a merge base
+
+      - name: Pre-fetch base and head refs
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "$PR_BASE_REF" "+refs/pull/$PR_NUMBER/head"
+
+      - name: Run Codex review
+        id: run_codex
+        if: steps.gate.outputs.skip != 'true'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          model: gpt-5.5   # if API-key auth rejects this, fall back to gpt-5.2-codex
+          prompt: |
+            Review the diff of this pull request against its base branch.
+            Run: git diff origin/${{ github.event.pull_request.base.ref }}...HEAD
+            Output Markdown that includes, on its own line, exactly one of:
+              VERDICT: APPROVE
+              VERDICT: REQUEST_CHANGES
+            followed by a "Findings" section: concrete issues (correctness, security, test gaps),
+            each with file:line and a suggested fix. If nothing is blocking, APPROVE briefly.
+
+  post_feedback:
+    runs-on: ubuntu-latest
+    needs: codex
+    if: needs.codex.outputs.final_message != ''
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post review comment
+        uses: actions/github-script@v7
+        env:
+          CODEX_FINAL_MESSAGE: ${{ needs.codex.outputs.final_message }}
+        with:
+          script: |
+            const body = process.env.CODEX_FINAL_MESSAGE;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `## Codex Review\n\n${body}`,
+            });

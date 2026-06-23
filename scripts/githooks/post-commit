@@ -1,0 +1,13 @@
+#!/bin/sh
+# managed: agent-pr-workflow v1
+b="$(git rev-parse --abbrev-ref HEAD)"
+[ "$b" = "HEAD" ] && exit 0                                   # detached: never push
+def="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
+if [ -n "$def" ]; then
+  [ "$b" = "$def" ] && exit 0                                 # never push the resolved default branch
+else
+  case "$b" in main|master|trunk) exit 0 ;; esac             # default undeterminable: skip common defaults
+fi
+log="$(git rev-parse --git-dir)/agent-pr-push.log"
+{ git push -u origin "$b" || echo "push failed $(date)"; } >>"$log" 2>&1 &
+exit 0
