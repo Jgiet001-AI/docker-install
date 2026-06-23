@@ -33,3 +33,5 @@ docker compose down
 ```
 
 The `n8n_data`, `redis_data`, and `postgres_data` Docker volumes preserve app data between restarts.
+
+<!-- claude-review auth check (throwaway) -->
