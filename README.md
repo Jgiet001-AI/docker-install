@@ -12,23 +12,36 @@ This Docker Compose setup runs n8n, Redis, and Postgres locally with persistent 
 - Postgres password: stored in `.env` as `POSTGRES_PASSWORD`
 - Shared host files for n8n: put files in `./local-files`, then use `/files` inside n8n
 
-## Commands
+## Quick start
 
-Create your local environment file first:
+Clone the repo and run the bootstrap script. It creates `.env` from
+`.env.example` with randomly generated secrets (no editing, no prompts) and
+starts the stack:
 
-```powershell
-Copy-Item .env.example .env
+```bash
+# macOS / Linux
+./scripts/start.sh
 ```
 
 ```powershell
-docker compose up -d
+# Windows
+pwsh scripts/start.ps1
+```
+
+Re-running is safe — an existing `.env` is never overwritten, so your secrets
+and saved n8n credentials are preserved. **Back up `.env`**: changing
+`N8N_ENCRYPTION_KEY` later breaks saved n8n credentials.
+
+## Commands
+
+```bash
 docker compose ps
 docker compose logs -f
 ```
 
 To stop the stack without deleting saved data:
 
-```powershell
+```bash
 docker compose down
 ```
 

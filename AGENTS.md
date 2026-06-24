@@ -11,12 +11,19 @@ restarts. Repo `Jgiet001-AI/docker-install`.
 
 ## Run
 
-```powershell
-Copy-Item .env.example .env     # then fill in real secrets (see below)
-docker compose up -d
+Bootstrap (creates `.env` from `.env.example` with generated secrets if missing, then `up -d`):
+
+```bash
+./scripts/start.sh        # macOS/Linux
+pwsh scripts/start.ps1    # Windows
+```
+
+The script never overwrites an existing `.env`. Day-to-day:
+
+```bash
 docker compose ps
 docker compose logs -f
-docker compose down             # stop; keeps volumes/data
+docker compose down       # stop; keeps volumes/data
 ```
 
 ## Services
